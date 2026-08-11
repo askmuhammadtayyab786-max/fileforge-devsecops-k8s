@@ -1,0 +1,184 @@
+# ─── 1. HashiCorp Vault Deployment & Service ───────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  labels:
+    app: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vault
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      containers:
+        - name: vault
+          image: hashicorp/vault:1.15
+          env:
+            - name: VAULT_DEV_ROOT_TOKEN_ID
+              value: "root"
+            - name: VAULT_DEV_LISTEN_ADDRESS
+              value: "0.0.0.0:8200"
+          ports:
+            - containerPort: 8200
+          readinessProbe:
+            exec:
+              command: ["vault", "status", "-address=http://127.0.0.1:8200"]
+            initialDelaySeconds: 3
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+spec:
+  selector:
+    app: vault
+  ports:
+    - port: 8200
+      targetPort: 8200
+
+---
+# ─── 2. Temporary K8s Secret & Vault Seeding Job ───────────────
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-raw-secrets
+type: Opaque
+stringData:
+  MONGODB_URI: "mongodb://fileforge_app:ChangeThisAppPassword456!@mongo:27017/fileforge?authSource=fileforge"
+  JWT_SECRET: "41idbqKsRC8z2CXyEnHk4U9NHGNg4gzajg/l0UxPsdaDfxy/neUTNGKEFj04S47K"
+  JWT_EXPIRES_IN: "2h"
+  ALLOWED_ORIGINS: "http://localhost"
+  MAX_FILE_SIZE: "52428800"
+  MAX_USER_QUOTA_BYTES: "524288000"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-init-job
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: vault-init
+          image: hashicorp/vault:1.15
+          envFrom:
+            - secretRef:
+                name: backend-raw-secrets
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault:8200"
+            - name: VAULT_TOKEN
+              value: "root"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "⏳ Waiting for Vault service at $VAULT_ADDR..."
+              until vault status -address="$VAULT_ADDR" > /dev/null 2>&1; do sleep 1; done
+              
+              echo "🔑 Enabling KV v2 secrets engine..."
+              vault secrets enable -path=secret kv-v2 || true
+              
+              echo "🚀 Pushing secrets to 'secret/fileforge/backend'..."
+              vault kv put secret/fileforge/backend \
+                MONGODB_URI="$MONGODB_URI" \
+                JWT_SECRET="$JWT_SECRET" \
+                JWT_EXPIRES_IN="$JWT_EXPIRES_IN" \
+                ALLOWED_ORIGINS="$ALLOWED_ORIGINS" \
+                MAX_FILE_SIZE="$MAX_FILE_SIZE" \
+                MAX_USER_QUOTA_BYTES="$MAX_USER_QUOTA_BYTES"
+              
+              echo "✅ Vault successfully seeded!"
+
+---
+# ─── 3. Hardened MongoDB StatefulSet & Service ──────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:latest
+          imagePullPolicy: Never
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "admin"
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: "adminpassword123"
+            - name: MONGO_INITDB_DATABASE
+              value: "fileforge"
+          ports:
+            - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+
+---
+# ─── 4. Backend Node.js Deployment & Service ───────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: backend:latest
+          imagePullPolicy: Never
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "5000"
+            - name: VAULT_ADDR
+              value: "http://vault:8200"
+            - name: VAULT_TOKEN
+              value: "root"
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 5000
+      targetPort: 5000

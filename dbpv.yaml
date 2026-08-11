@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: db-pv
+  labels:
+    type: local
+spec:
+  storageClassName: manual   # dynamic provisioner use nahi karna, manually PV<->PVC bind hoga
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /mnt/data/mongo    # minikube VM ke andar ka path (minikube ssh se dekh sakte ho)

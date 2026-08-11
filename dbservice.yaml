@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: myapp
+spec:
+  type: ClusterIP     # sirf cluster ke andar accessible, external expose nahi
+  selector:
+    app: db
+  ports:
+    - port: 27017
+      targetPort: 27017
+  # backend isko service name "db" se hit karega, e.g. mongodb://db:27017/mydb

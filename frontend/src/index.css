@@ -1,0 +1,70 @@
+/* ─── CSS Variables ─────────────────────────────────────────────────────────── */
+:root {
+  --bg-base:       #0a0a0b;
+  --bg-surface:    #111113;
+  --bg-card:       #16161a;
+  --bg-hover:      #1e1e24;
+  --border:        #242429;
+  --border-accent: #3a3a45;
+
+  --text-primary:  #f0f0f5;
+  --text-secondary:#8a8a9a;
+  --text-muted:    #4a4a5a;
+
+  --accent:        #6c63ff;
+  --accent-hover:  #7c73ff;
+  --accent-dim:    rgba(108, 99, 255, 0.12);
+  --accent-glow:   rgba(108, 99, 255, 0.25);
+
+  --success:       #22d3a0;
+  --warning:       #f5a623;
+  --error:         #ff5566;
+  --info:          #38bdf8;
+
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+
+  --font-display: 'Syne', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  --transition: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ─── Typography ─────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; line-height: 1.2; }
+code, .mono { font-family: var(--font-mono); }
+
+/* ─── Utility ────────────────────────────────────────────────────────────────── */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }

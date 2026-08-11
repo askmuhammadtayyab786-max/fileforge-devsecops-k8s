@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: myapp
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      serviceAccountName: backend
+      containers:
+        - name: backend
+          image: backend:latest
+          imagePullPolicy: Never   # local build hai, minikube docker-env me build karo
+          ports:
+            - containerPort: 5000   # apna actual backend port yahan daalo
+          env:
+            - name: MONGO_URI
+              value: "mongodb://db:27017/mydb"
+            - name: VAULT_ADDR
+              value: "http://vault:8200"

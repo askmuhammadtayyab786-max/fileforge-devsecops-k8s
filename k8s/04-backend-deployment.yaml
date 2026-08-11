@@ -1,0 +1,91 @@
+# Note: EBS-backed PVCs are ReadWriteOnce, so this only truly works safely
+# with a single backend replica (or replicas pinned to one node). For the
+# `replicas: 2` below to share uploads correctly across nodes, switch to an
+# EFS-backed StorageClass (ReadWriteMany) instead — encryption-at-rest is
+# supported by EFS too, just with a different provisioner/parameters.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: fileforge
+spec:
+  accessModes: ["ReadWriteOnce"]
+  # Fix: "No encryption at rest on the volume" (Information Disclosure)
+  storageClassName: fileforge-encrypted-gp3
+  resources:
+    requests: { storage: 50Gi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: fileforge
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: backend }
+  template:
+    metadata:
+      labels: { app: backend }
+    spec:
+      containers:
+        - name: backend
+          image: <your-ecr-repo>/fileforge-backend:<pinned-digest-or-tag>
+          ports:
+            - containerPort: 5000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "5000"
+            - name: UPLOAD_DIR
+              value: /data/uploads
+            - name: MAX_FILE_SIZE
+              value: "52428800"
+            - name: MAX_USER_QUOTA_BYTES
+              value: "524288000"
+            - name: ALLOWED_ORIGINS
+              value: "https://your-domain.example.com"
+            - name: MONGO_APP_USERNAME
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-username } }
+            - name: MONGO_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-password } }
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGO_APP_USERNAME):$(MONGO_APP_PASSWORD)@mongo.fileforge.svc.cluster.local:27017/fileforge?authSource=fileforge"
+            # Fix: "No user authentication" / "No auth on API endpoints"
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: jwt-secret } }
+            - name: JWT_EXPIRES_IN
+              value: "2h"
+            # Fix: "Uploaded files not scanned for malware" — point at a ClamAV
+            # service (deploy one separately) to actually enable scanning.
+            - name: CLAMAV_HOST
+              value: "clamav.fileforge.svc.cluster.local"
+            - name: CLAMAV_PORT
+              value: "3310"
+          volumeMounts:
+            - name: uploads
+              mountPath: /data/uploads
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 5000 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /api/health, port: 5000 }
+            initialDelaySeconds: 15
+      volumes:
+        - name: uploads
+          persistentVolumeClaim: { claimName: uploads-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: fileforge
+spec:
+  selector: { app: backend }
+  ports:
+    - port: 5000
+      targetPort: 5000

@@ -1,0 +1,32 @@
+# Fixes: "Traffic served over HTTP, not HTTPS" (Tampering)
+#        "Rate limiting may be bypassed" (Denial of Service) — re-implemented
+#        here at the Ingress since this replaces the docker-compose Nginx.
+# Requires nginx-ingress-controller + cert-manager installed on the cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fileforge
+  namespace: fileforge
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/proxy-body-size: "55m"
+spec:
+  tls:
+    - hosts: ["your-domain.example.com"]
+      secretName: fileforge-tls
+  rules:
+    - host: your-domain.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: backend, port: { number: 5000 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: frontend, port: { number: 8080 } }

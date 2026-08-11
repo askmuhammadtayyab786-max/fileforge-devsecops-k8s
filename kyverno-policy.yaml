@@ -1,0 +1,38 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: enforce-pod-security
+  annotations:
+    policies.kyverno.io/title: Enforce Non-Root and Security Context
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: Enforce  # Blocks non-compliant pods ('Audit' only logs)
+  background: true
+  rules:
+    - name: require-run-as-non-root
+      match:
+        any:
+        - resources:
+            kinds:
+              - Pod
+      validate:
+        message: "Security Violation: Pods must run as non-root users (runAsNonRoot must be true)."
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+
+    - name: disallow-privilege-escalation
+      match:
+        any:
+        - resources:
+            kinds:
+              - Pod
+      validate:
+        message: "Security Violation: Privilege escalation is forbidden (allowPrivilegeEscalation must be false)."
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  allowPrivilegeEscalation: false

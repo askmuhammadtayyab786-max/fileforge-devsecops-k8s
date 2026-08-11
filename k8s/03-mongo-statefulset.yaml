@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: fileforge
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels: { app: mongo }
+  template:
+    metadata:
+      labels: { app: mongo }
+    spec:
+      containers:
+        # Kept on the official image (not Chainguard) — see the note in
+        # docker-compose.yaml for why. Pin to a digest before production:
+        #   docker pull mongo:7 && docker inspect --format='{{index .RepoDigests 0}}' mongo:7
+        - name: mongo
+          image: mongo:7@sha256:REPLACE_WITH_DIGEST_FROM_docker_inspect
+          # Fix: "MongoDB has no authentication configured" (Tampering)
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-root-username } }
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-root-password } }
+            - name: MONGO_INITDB_DATABASE
+              value: fileforge
+            - name: MONGO_APP_USERNAME
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-username } }
+            - name: MONGO_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-password } }
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: mongo-init
+          configMap: { name: mongo-init-script }
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # Fix: "Data likely unencrypted at rest" (Information Disclosure)
+        storageClassName: fileforge-encrypted-gp3
+        resources:
+          requests: { storage: 20Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: fileforge
+spec:
+  clusterIP: None   # headless — only resolvable inside the cluster, never gets an external IP
+  selector: { app: mongo }
+  ports:
+    - port: 27017
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-init-script
+  namespace: fileforge
+data:
+  mongo-init.js: |
+    // See ../mongo-init.js in the repo root for the authoritative copy —
+    // keep the two in sync when editing.
+    const appUser = process.env.MONGO_APP_USERNAME;
+    const appPassword = process.env.MONGO_APP_PASSWORD;
+    db = db.getSiblingDB('fileforge');
+    db.createCollection('files');
+    db.files.createIndex({ fileId: 1 }, { unique: true });
+    db.files.createIndex({ owner: 1 });
+    db.files.createIndex({ category: 1, status: 1 });
+    db.files.createIndex({ createdAt: -1 });
+    db.files.createIndex({ originalName: 'text' });
+    db.files.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+    db.createUser({ user: appUser, pwd: appPassword, roles: [{ role: 'readWrite', db: 'fileforge' }] });

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: fileforge
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        # Built from frontend/Dockerfile: Chainguard node (build) +
+        # Chainguard nginx (runtime, non-root, port 8080) — low-to-zero CVE.
+        - name: frontend
+          image: <your-ecr-repo>/fileforge-frontend:<pinned-digest-or-tag>
+          ports:
+            - containerPort: 8080
+          env:
+            - name: VITE_API_URL
+              value: "/api"
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: fileforge
+spec:
+  selector: { app: frontend }
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,0 +1,40 @@
+# Fixes: "MongoDB has no authentication configured" (Tampering) — defense in
+# depth beyond auth: even with valid credentials, only the backend pods
+# should ever be able to reach Mongo's port at the network layer.
+# Requires a CNI that enforces NetworkPolicy (e.g. Calico on EKS).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongo-only-from-backend
+  namespace: fileforge
+spec:
+  podSelector:
+    matchLabels: { app: mongo }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: backend } }
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# Backend should only be reachable from the Ingress controller, not directly
+# from other pods/namespaces in the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-only-from-ingress
+  namespace: fileforge
+spec:
+  podSelector:
+    matchLabels: { app: backend }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: { matchLabels: { app: frontend } }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - protocol: TCP
+          port: 5000
