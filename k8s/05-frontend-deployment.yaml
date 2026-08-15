@@ -15,7 +15,8 @@ spec:
         # Built from frontend/Dockerfile: Chainguard node (build) +
         # Chainguard nginx (runtime, non-root, port 8080) — low-to-zero CVE.
         - name: frontend
-          image: <your-ecr-repo>/fileforge-frontend:<pinned-digest-or-tag>
+          image: frontend:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
           env:

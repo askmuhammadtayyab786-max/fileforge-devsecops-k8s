@@ -1,15 +1,7 @@
-# Fixes: "Data likely unencrypted at rest" (MongoDB) and
-#        "No encryption at rest on the volume" (PersistentVolume/uploads)
-# Requires the AWS EBS CSI driver to be installed on the EKS cluster.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: fileforge-encrypted-gp3
-provisioner: ebs.csi.aws.com
-parameters:
-  type: gp3
-  encrypted: "true"
-  # Optionally pin a customer-managed KMS key instead of the default aws/ebs key:
-  # kmsKeyId: arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab
-reclaimPolicy: Retain
-volumeBindingMode: WaitForFirstConsumer
+provisioner: k8s.io/minikube-hostpath
+reclaimPolicy: Delete
+volumeBindingMode: Immediate

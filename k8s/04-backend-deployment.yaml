@@ -30,7 +30,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: <your-ecr-repo>/fileforge-backend:<pinned-digest-or-tag>
+          image: backend:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 5000
           env:
