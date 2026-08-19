@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: fileforge
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mongo }
+  template:
+    metadata:
+      labels: { app: mongo }
+    spec:
+      containers:
+        - name: mongo
+          image: fileforge-mongo:latest
+          imagePullPolicy: Never
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-root-username } }
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-root-password } }
+            - name: MONGO_INITDB_DATABASE
+              value: fileforge
+            - name: MONGO_APP_USERNAME
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-username } }
+            - name: MONGO_APP_PASSWORD
+              valueFrom: { secretKeyRef: { name: fileforge-secrets, key: mongo-app-password } }
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+            - name: mongo-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: mongo-data-mongo-0
+        - name: mongo-init
+          configMap: { name: mongo-init-script }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: fileforge
+spec:
+  clusterIP: None
+  selector: { app: mongo }
+  ports:
+    - port: 27017
