@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: db
-          image: fileforge-mongo:latest
+          image: fileforge-mongo:latest 
           imagePullPolicy: Never
           ports:
             - containerPort: 27017

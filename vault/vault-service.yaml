@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: vault
-  namespace: myapp
+  namespace: fileforge
 spec:
   type: ClusterIP
   selector:
